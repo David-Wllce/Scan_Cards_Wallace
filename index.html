@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wallace · Card Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0f0f0f;
+  --ink-soft: #4a4a4a;
+  --ink-muted: #9a9a9a;
+  --paper: #faf9f7;
+  --paper-2: #f2f0ec;
+  --paper-3: #e5e2db;
+  --accent: #1a3a2a;
+  --accent-mid: #2d5c42;
+  --accent-light: #eaf2ee;
+  --warn: #c85c1a;
+  --warn-light: #fdf0e8;
+  --success: #1a6640;
+  --success-light: #e8f5ee;
+  --r: 12px;
+  --r-sm: 6px;
+  --sh: 0 1px 12px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.06);
+  --sh-lg: 0 8px 40px rgba(0,0,0,0.10), 0 0 0 0.5px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+
+/* ── HEADER ── */
+header { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 2rem; border-bottom: 1px solid var(--paper-3); background: var(--paper); position: sticky; top: 0; z-index: 50; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-mark { width: 30px; height: 30px; background: var(--ink); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+.logo-mark svg { width: 16px; height: 16px; fill: var(--paper); }
+.logo-name { font-family: 'DM Serif Display', serif; font-size: 1rem; color: var(--ink); }
+.logo-name span { font-family: 'DM Sans', sans-serif; font-weight: 300; color: var(--ink-muted); font-size: 0.82rem; margin-left: 5px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.btn-ghost { font-size: 12.5px; font-family: 'DM Sans', sans-serif; color: var(--ink-soft); background: none; border: 0.5px solid var(--paper-3); border-radius: var(--r-sm); padding: 5px 12px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 5px; }
+.btn-ghost:hover { background: var(--paper-2); color: var(--ink); }
+
+/* ── TABS ── */
+.tabs-bar { border-bottom: 1px solid var(--paper-3); background: var(--paper); padding: 0 2rem; display: flex; gap: 0; }
+.tab-btn { font-size: 13.5px; font-family: 'DM Sans', sans-serif; color: var(--ink-muted); background: none; border: none; border-bottom: 2px solid transparent; padding: 0.85rem 1.25rem; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 7px; margin-bottom: -1px; white-space: nowrap; }
+.tab-btn:hover { color: var(--ink-soft); }
+.tab-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
+.tab-icon { font-size: 14px; }
+
+/* ── MAIN LAYOUT ── */
+main { max-width: 1080px; width: 100%; margin: 0 auto; padding: 2.5rem 2rem; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── SPLIT LAYOUT (carte) ── */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+@media (max-width: 720px) { .split { grid-template-columns: 1fr; gap: 1.5rem; } main { padding: 1.5rem 1rem; } .tabs-bar { padding: 0 1rem; } }
+
+/* ── SECTION TITLES ── */
+.section-eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 0.5rem; }
+.section-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; line-height: 1.15; margin-bottom: 0.5rem; }
+.section-title em { font-style: italic; color: var(--ink-soft); }
+.section-sub { font-size: 13.5px; color: var(--ink-muted); line-height: 1.65; margin-bottom: 1.75rem; }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone { border: 1.5px dashed var(--paper-3); border-radius: var(--r); padding: 2.25rem 1.5rem; text-align: center; cursor: pointer; transition: all .2s; position: relative; overflow: hidden; }
+.upload-zone:hover, .upload-zone.drag { border-color: var(--accent-mid); background: var(--accent-light); }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon-wrap { width: 44px; height: 44px; background: var(--paper-2); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.85rem; }
+.upload-icon-wrap svg { width: 22px; height: 22px; stroke: var(--ink-soft); fill: none; stroke-width: 1.5; }
+.upload-label { font-size: 14.5px; font-weight: 500; display: block; margin-bottom: 4px; }
+.upload-hint { font-size: 12.5px; color: var(--ink-muted); }
+
+/* ── PREVIEW ── */
+.card-preview { display: none; margin-top: 1rem; border-radius: var(--r); overflow: hidden; box-shadow: var(--sh); position: relative; }
+.card-preview img { width: 100%; height: 170px; object-fit: cover; display: block; }
+.preview-reset { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.5); color: #fff; border: none; border-radius: 5px; padding: 4px 9px; font-size: 11.5px; cursor: pointer; font-family: 'DM Sans', sans-serif; backdrop-filter: blur(3px); }
+
+/* ── LOADING ── */
+.loading-box { display: none; margin-top: 1.25rem; padding: 1.1rem 1.25rem; background: var(--paper-2); border-radius: var(--r); align-items: center; gap: 12px; }
+.spinner { width: 18px; height: 18px; flex-shrink: 0; border: 2px solid var(--paper-3); border-top-color: var(--ink); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-label strong { display: block; font-size: 13.5px; font-weight: 500; margin-bottom: 2px; }
+.loading-label span { font-size: 12.5px; color: var(--ink-muted); }
+
+/* ── STEP PILLS ── */
+.steps { display: flex; gap: 5px; margin-top: 1.5rem; }
+.step { flex: 1; padding: 8px 6px; border-radius: var(--r-sm); background: var(--paper-2); font-size: 11.5px; color: var(--ink-muted); display: flex; align-items: center; gap: 5px; transition: all .2s; }
+.step.active { background: var(--accent-light); color: var(--accent); }
+.step.done { background: var(--success-light); color: var(--success); }
+.step-num { width: 16px; height: 16px; background: currentColor; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; flex-shrink: 0; }
+.step.active .step-num { background: var(--accent); }
+.step.done .step-num { background: var(--success); }
+
+/* ── FORM ── */
+.form-section { display: none; }
+.form-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.form-title { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+.editable-badge { font-size: 11px; background: var(--paper-2); color: var(--ink-muted); padding: 3px 9px; border-radius: 20px; }
+.field { margin-bottom: 0.9rem; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+label.fl { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); margin-bottom: 4px; }
+input.fi { width: 100%; padding: 8px 11px; font-size: 13.5px; font-family: 'DM Sans', sans-serif; color: var(--ink); background: white; border: 0.5px solid var(--paper-3); border-radius: var(--r-sm); outline: none; transition: border .15s; }
+input.fi:focus { border-color: var(--accent-mid); }
+input.fi::placeholder { color: var(--ink-muted); }
+
+/* ── DUPLICATE ALERT ── */
+.dup-alert { display: none; background: var(--warn-light); border: 0.5px solid #f0c4a0; border-radius: var(--r-sm); padding: 11px 13px; margin-bottom: 1.1rem; }
+.dup-title { font-size: 12.5px; font-weight: 500; color: var(--warn); margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
+.dup-match { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 0.5px solid rgba(200,92,26,0.15); font-size: 12.5px; color: var(--ink-soft); }
+.dup-match:last-child { border-bottom: none; }
+.dup-score { font-size: 10.5px; padding: 2px 7px; border-radius: 20px; background: rgba(200,92,26,0.12); color: var(--warn); font-weight: 500; }
+.dup-link { font-size: 11.5px; color: var(--accent); background: none; border: none; cursor: pointer; text-decoration: underline; font-family: 'DM Sans', sans-serif; padding: 0 3px; }
+
+/* ── BUTTONS ── */
+.actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+.btn-primary { flex: 1; padding: 10px 18px; background: var(--ink); color: var(--paper); border: none; border-radius: var(--r-sm); font-size: 13.5px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.btn-primary:hover { background: var(--accent); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn-secondary { padding: 10px 14px; background: none; color: var(--ink-soft); border: 0.5px solid var(--paper-3); border-radius: var(--r-sm); font-size: 13.5px; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all .15s; }
+.btn-secondary:hover { background: var(--paper-2); }
+
+/* ── PLACEHOLDER ── */
+.placeholder { padding: 2.5rem 0; text-align: center; color: var(--ink-muted); font-size: 13.5px; line-height: 1.7; }
+.placeholder svg { width: 44px; height: 44px; stroke: var(--paper-3); fill: none; stroke-width: 1; margin: 0 auto 1rem; display: block; }
+
+/* ── SUCCESS ── */
+.success-box { display: none; text-align: center; padding: 2.5rem 1rem; }
+.success-check { width: 48px; height: 48px; background: var(--success-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 20px; color: var(--success); }
+.success-name { font-family: 'DM Serif Display', serif; font-size: 1.3rem; margin-bottom: 5px; }
+.success-sub { font-size: 13px; color: var(--ink-muted); margin-bottom: 1.25rem; }
+.success-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px; margin-bottom: 1.25rem; }
+
+/* ── VCARD PANEL ── */
+.vcf-intro { max-width: 600px; margin-bottom: 2rem; }
+.vcf-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem; }
+@media (max-width: 600px) { .vcf-steps { grid-template-columns: 1fr; } }
+.vcf-step-card { background: white; border: 0.5px solid var(--paper-3); border-radius: var(--r); padding: 1.1rem; }
+.vcf-step-num { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); margin-bottom: 6px; }
+.vcf-step-title { font-weight: 500; font-size: 14px; margin-bottom: 4px; }
+.vcf-step-desc { font-size: 12.5px; color: var(--ink-muted); line-height: 1.55; }
+.vcf-upload-zone { border: 1.5px dashed var(--paper-3); border-radius: var(--r); padding: 2.5rem; text-align: center; cursor: pointer; transition: all .2s; position: relative; max-width: 520px; }
+.vcf-upload-zone:hover, .vcf-upload-zone.drag { border-color: var(--accent-mid); background: var(--accent-light); }
+.vcf-upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.vcf-file-name { font-size: 13px; color: var(--ink-soft); margin-top: 0.5rem; font-style: italic; }
+
+/* ── IMPORT PROGRESS ── */
+.import-progress { display: none; margin-top: 1.5rem; max-width: 520px; }
+.progress-bar-wrap { background: var(--paper-3); border-radius: 20px; height: 6px; overflow: hidden; margin-bottom: 0.75rem; }
+.progress-bar { height: 100%; background: var(--accent); border-radius: 20px; transition: width .3s; width: 0%; }
+.progress-label { font-size: 13px; color: var(--ink-soft); }
+
+/* ── IMPORT RESULTS ── */
+.import-results { display: none; margin-top: 1.5rem; max-width: 520px; }
+.result-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+.res-card { background: white; border: 0.5px solid var(--paper-3); border-radius: var(--r-sm); padding: 0.9rem; text-align: center; }
+.res-card.green { background: var(--success-light); border-color: #b3ddc5; }
+.res-card.orange { background: var(--warn-light); border-color: #f0c4a0; }
+.res-card .res-num { font-family: 'DM Serif Display', serif; font-size: 1.8rem; display: block; }
+.res-card .res-label { font-size: 11.5px; color: var(--ink-muted); }
+.res-card.green .res-num { color: var(--success); }
+.res-card.orange .res-num { color: var(--warn); }
+.result-list { max-height: 240px; overflow-y: auto; border: 0.5px solid var(--paper-3); border-radius: var(--r-sm); }
+.result-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 0.5px solid var(--paper-3); font-size: 12.5px; }
+.result-item:last-child { border-bottom: none; }
+.ri-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-right: 8px; }
+.ri-dot.green { background: var(--success); }
+.ri-dot.gray { background: var(--ink-muted); }
+.ri-dot.red { background: #e24b4a; }
+.ri-name { flex: 1; color: var(--ink); }
+.ri-reason { font-size: 11px; color: var(--ink-muted); }
+
+/* ── iOS PANEL ── */
+.ios-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+@media (max-width: 720px) { .ios-layout { grid-template-columns: 1fr; } }
+.shortcut-card { background: white; border: 0.5px solid var(--paper-3); border-radius: var(--r); padding: 1.5rem; }
+.shortcut-badge { display: inline-flex; align-items: center; gap: 6px; background: #f0f0f5; border-radius: 8px; padding: 6px 12px; margin-bottom: 1rem; font-size: 12.5px; color: #3a3a6a; font-weight: 500; }
+.ios-step { display: flex; gap: 12px; margin-bottom: 1.1rem; align-items: flex-start; }
+.ios-step-num { width: 24px; height: 24px; background: var(--ink); color: var(--paper); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; margin-top: 1px; }
+.ios-step-content strong { display: block; font-size: 13.5px; font-weight: 500; margin-bottom: 3px; }
+.ios-step-content p { font-size: 12.5px; color: var(--ink-muted); line-height: 1.55; }
+.ios-step-content code { font-size: 11.5px; background: var(--paper-2); padding: 2px 7px; border-radius: 4px; font-family: monospace; color: var(--ink-soft); word-break: break-all; }
+.url-box { background: var(--paper-2); border-radius: var(--r-sm); padding: 10px 14px; font-size: 12px; font-family: monospace; color: var(--ink-soft); word-break: break-all; margin: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.copy-btn { font-size: 11px; padding: 4px 10px; background: white; border: 0.5px solid var(--paper-3); border-radius: 4px; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+.copy-btn:hover { background: var(--paper-3); }
+.shortcut-preview { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: var(--r); padding: 1.5rem; color: white; }
+.sp-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: .5; margin-bottom: 1rem; }
+.sp-action { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.08); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+.sp-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.sp-action:last-child { margin-bottom: 0; }
+
+/* ── CONFIG MODAL ── */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+.overlay.open { display: flex; }
+.modal { background: white; border-radius: var(--r); padding: 1.75rem; max-width: 420px; width: 90%; box-shadow: var(--sh-lg); }
+.modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.2rem; margin-bottom: 5px; }
+.modal p { font-size: 12.5px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 1.25rem; }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--ink); color: var(--paper); padding: 11px 16px; border-radius: var(--r-sm); font-size: 13px; box-shadow: var(--sh-lg); transform: translateY(60px); opacity: 0; transition: all .28s cubic-bezier(.16,1,.3,1); z-index: 200; max-width: 300px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.err { background: var(--warn); }
+
+/* ── FOOTER ── */
+footer { padding: 1rem 2rem; border-top: 1px solid var(--paper-3); display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#">
+    <div class="logo-mark"><svg viewBox="0 0 18 18"><path d="M9 2L2 7v9h14V7L9 2z"/></svg></div>
+    <span class="logo-name">Wallace <span>· CRM Tools</span></span>
+  </a>
+  <div class="header-right">
+    <button class="btn-ghost" onclick="openConfig()">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+      Configuration
+    </button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs-bar">
+  <button class="tab-btn active" onclick="switchTab('scan', this)">
+    <span class="tab-icon">📷</span> Scanner une carte
+  </button>
+  <button class="tab-btn" onclick="switchTab('vcf', this)">
+    <span class="tab-icon">📱</span> Import contacts iPhone
+  </button>
+  <button class="tab-btn" onclick="switchTab('ios', this)">
+    <span class="tab-icon">⚡</span> Raccourci iOS
+  </button>
+</div>
+
+<main>
+
+  <!-- ══ TAB 1 : SCANNER CARTE ══ -->
+  <div id="tab-scan" class="tab-panel active">
+    <div class="split">
+      <div>
+        <p class="section-eyebrow">Capture</p>
+        <h1 class="section-title">Scannez une<br><em>carte de visite</em></h1>
+        <p class="section-sub">Uploadez une photo — Claude extrait le nom, email, téléphone, poste et l'envoie dans votre CRM Notion.</p>
+
+        <div class="upload-zone" id="upload-zone"
+          ondragover="handleDragOver(event,'upload-zone')"
+          ondragleave="handleDragLeave('upload-zone')"
+          ondrop="handleCardDrop(event)">
+          <input type="file" id="card-file" accept="image/*" onchange="handleCardFile(this.files[0])">
+          <div class="upload-icon-wrap">
+            <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10h.01M12 10h.01M16 10h.01M8 14h8"/></svg>
+          </div>
+          <span class="upload-label">Déposer la carte ici</span>
+          <span class="upload-hint">ou cliquer · JPG, PNG, HEIC</span>
+        </div>
+
+        <div class="card-preview" id="card-preview">
+          <img id="preview-img" alt="Carte de visite">
+          <button class="preview-reset" onclick="resetCard()">↺ Nouvelle</button>
+        </div>
+
+        <div class="loading-box" id="card-loading">
+          <div class="spinner"></div>
+          <div class="loading-label">
+            <strong id="loading-title">Analyse en cours…</strong>
+            <span id="loading-sub">Claude Vision lit la carte</span>
+          </div>
+        </div>
+
+        <div class="steps" id="steps">
+          <div class="step" id="s1"><div class="step-num">1</div><span>Photo</span></div>
+          <div class="step" id="s2"><div class="step-num">2</div><span>Extraction</span></div>
+          <div class="step" id="s3"><div class="step-num">3</div><span>Vérif.</span></div>
+          <div class="step" id="s4"><div class="step-num">4</div><span>Notion</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="placeholder" id="card-placeholder">
+          <svg viewBox="0 0 48 48"><rect x="8" y="6" width="32" height="36" rx="3" stroke-width="1.5"/><path d="M16 16h16M16 22h16M16 28h10" stroke-width="1.5"/></svg>
+          Uploadez une carte pour<br>extraire les informations
+        </div>
+
+        <div class="form-section" id="card-form">
+          <div class="form-header">
+            <span class="form-title">Informations extraites</span>
+            <span class="editable-badge">Modifiable</span>
+          </div>
+
+          <div class="dup-alert" id="dup-alert">
+            <div class="dup-title">⚠ Entreprise similaire dans Notion</div>
+            <div id="dup-list"></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field"><label class="fl">Prénom</label><input class="fi" type="text" id="f-prenom" placeholder="–"></div>
+            <div class="field"><label class="fl">Nom</label><input class="fi" type="text" id="f-nom" placeholder="–"></div>
+          </div>
+          <div class="field"><label class="fl">Entreprise</label><input class="fi" type="text" id="f-entreprise" placeholder="–" oninput="onEntChange(this.value)"></div>
+          <div class="field"><label class="fl">Poste</label><input class="fi" type="text" id="f-poste" placeholder="–"></div>
+          <div class="field-row">
+            <div class="field"><label class="fl">Email</label><input class="fi" type="email" id="f-email" placeholder="–"></div>
+            <div class="field"><label class="fl">Téléphone</label><input class="fi" type="tel" id="f-tel" placeholder="–"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="fl">Site web</label><input class="fi" type="text" id="f-web" placeholder="–"></div>
+            <div class="field"><label class="fl">LinkedIn</label><input class="fi" type="text" id="f-linkedin" placeholder="–"></div>
+          </div>
+          <div class="field"><label class="fl">Notes</label><input class="fi" type="text" id="f-notes" placeholder="Ajoutez une note…"></div>
+          <input type="hidden" id="f-ent-id">
+
+          <div class="actions">
+            <button class="btn-secondary" onclick="resetCard()">↺</button>
+            <button class="btn-primary" id="send-btn" onclick="sendCard()">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+              Ajouter dans Notion
+            </button>
+          </div>
+        </div>
+
+        <div class="success-box" id="card-success">
+          <div class="success-check">✓</div>
+          <div class="success-name" id="success-name"></div>
+          <div class="success-sub">Contact ajouté dans votre CRM Notion</div>
+          <a href="#" id="success-link" class="success-link" target="_blank">Voir dans Notion ↗</a><br>
+          <button class="btn-primary" onclick="resetCard()" style="max-width:200px;margin:0 auto;">Scanner une autre carte</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB 2 : IMPORT vCARD ══ -->
+  <div id="tab-vcf" class="tab-panel">
+    <p class="section-eyebrow">Import en lot</p>
+    <h1 class="section-title" style="font-size:1.6rem;">Importer vos <em>contacts iPhone</em></h1>
+
+    <div class="vcf-intro">
+      <p class="section-sub" style="margin-bottom:0;">Exportez vos contacts depuis l'iPhone en fichier .vcf, puis uploadez-le ici. L'import est intelligent : il détecte les doublons, lie automatiquement les contacts aux entreprises déjà dans votre CRM, et ne crée jamais deux fois le même contact.</p>
+    </div>
+
+    <div class="vcf-steps">
+      <div class="vcf-step-card">
+        <div class="vcf-step-num">Étape 1</div>
+        <div class="vcf-step-title">Ouvrir Contacts</div>
+        <div class="vcf-step-desc">Sur iPhone : app <strong>Contacts</strong> → sélectionner les contacts → appuyer <strong>Partager</strong> → choisir <em>Envoyer une copie vCard</em>.</div>
+      </div>
+      <div class="vcf-step-card">
+        <div class="vcf-step-num">Étape 2</div>
+        <div class="vcf-step-title">Récupérer le fichier</div>
+        <div class="vcf-step-desc">Envoyez le fichier .vcf par email, AirDrop sur votre Mac, ou iCloud Drive. Ouvrez-le ensuite sur ce navigateur.</div>
+      </div>
+      <div class="vcf-step-card">
+        <div class="vcf-step-num">Étape 3</div>
+        <div class="vcf-step-title">Uploader ici</div>
+        <div class="vcf-step-desc">Déposez le fichier .vcf ci-dessous. L'import démarre automatiquement avec détection des doublons.</div>
+      </div>
+    </div>
+
+    <div class="vcf-upload-zone" id="vcf-zone"
+      ondragover="handleDragOver(event,'vcf-zone')"
+      ondragleave="handleDragLeave('vcf-zone')"
+      ondrop="handleVcfDrop(event)">
+      <input type="file" id="vcf-file" accept=".vcf,text/vcard,text/x-vcard" onchange="handleVcfFile(this.files[0])">
+      <div class="upload-icon-wrap" style="margin:0 auto 0.75rem;">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <span class="upload-label">Déposer votre fichier .vcf ici</span>
+      <span class="upload-hint">ou cliquer pour parcourir</span>
+      <div class="vcf-file-name" id="vcf-file-name"></div>
+    </div>
+
+    <div class="import-progress" id="import-progress">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar"></div></div>
+      <p class="progress-label" id="prog-label">Préparation de l'import…</p>
+    </div>
+
+    <div class="import-results" id="import-results">
+      <div class="result-summary" id="res-summary"></div>
+      <div class="result-list" id="res-list"></div>
+      <div class="actions" style="margin-top:1rem;max-width:520px;">
+        <button class="btn-secondary" onclick="resetVcf()">Importer un autre fichier</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB 3 : RACCOURCI iOS ══ -->
+  <div id="tab-ios" class="tab-panel">
+    <p class="section-eyebrow">Automatisation</p>
+    <h1 class="section-title" style="font-size:1.6rem;">Raccourci <em>iOS</em></h1>
+
+    <div class="ios-layout">
+      <div>
+        <p class="section-sub">Envoyez n'importe quel contact iPhone dans Notion en un seul tap — sans ouvrir l'app, sans scanner, sans copier-coller.</p>
+
+        <div class="ios-step">
+          <div class="ios-step-num">1</div>
+          <div class="ios-step-content">
+            <strong>Notez votre URL Vercel</strong>
+            <p>Renseignez-la dans Configuration (en haut). Elle ressemble à :</p>
+            <div class="url-box">
+              <span id="api-url-display">https://votre-projet.vercel.app/api/scan</span>
+              <button class="copy-btn" onclick="copyUrl()">Copier</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ios-step">
+          <div class="ios-step-num">2</div>
+          <div class="ios-step-content">
+            <strong>Installer le Raccourci</strong>
+            <p>Sur iPhone, ouvrez l'app <strong>Raccourcis</strong> et créez un nouveau raccourci avec les actions ci-contre. Ou scannez un QR code de partage si votre administrateur l'a configuré.</p>
+          </div>
+        </div>
+
+        <div class="ios-step">
+          <div class="ios-step-num">3</div>
+          <div class="ios-step-content">
+            <strong>Configuration dans Raccourcis</strong>
+            <p>Collez votre URL dans l'action <em>Obtenir le contenu de l'URL</em>. Corps de la requête JSON :</p>
+            <div class="url-box" style="flex-direction:column;align-items:flex-start;gap:4px;font-size:11px;line-height:1.6;">
+              <span>{</span>
+              <span>&nbsp;&nbsp;"action": "ios_shortcut",</span>
+              <span>&nbsp;&nbsp;"secret": "VOTRE_SECRET",</span>
+              <span>&nbsp;&nbsp;"contact": {</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"prenom": [Prénom du contact],</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"nom": [Nom de famille],</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"email": [Adresses mail],</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"telephone": [Numéros de téléphone],</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"entreprise": [Société],</span>
+              <span>&nbsp;&nbsp;&nbsp;&nbsp;"poste": [Intitulé du poste]</span>
+              <span>&nbsp;&nbsp;}</span>
+              <span>}</span>
+            </div>
+            <p style="margin-top:6px;">Le <code>secret</code> est la variable <code>IOS_SHORTCUT_SECRET</code> à définir dans Vercel.</p>
+          </div>
+        </div>
+
+        <div class="ios-step">
+          <div class="ios-step-num">4</div>
+          <div class="ios-step-content">
+            <strong>Utiliser le raccourci</strong>
+            <p>Dans l'app Contacts sur iPhone : ouvrez une fiche → faites défiler → <strong>Partager le contact</strong> → choisissez votre raccourci <em>Wallace CRM</em>. Le contact est instantanément dans Notion.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="shortcut-preview">
+          <div class="sp-title">Aperçu du raccourci iOS</div>
+          <div class="sp-action">
+            <div class="sp-icon" style="background:#3a7bd5;">👤</div>
+            <div>
+              <div style="font-size:12px;opacity:.6;margin-bottom:2px;">Déclencheur</div>
+              <div style="font-size:13.5px;">Recevoir une fiche contact</div>
+            </div>
+          </div>
+          <div class="sp-action">
+            <div class="sp-icon" style="background:#5856d6;">📋</div>
+            <div>
+              <div style="font-size:12px;opacity:.6;margin-bottom:2px;">Action 1</div>
+              <div style="font-size:13.5px;">Récupérer les détails du contact</div>
+            </div>
+          </div>
+          <div class="sp-action">
+            <div class="sp-icon" style="background:#ff6b35;">🔧</div>
+            <div>
+              <div style="font-size:12px;opacity:.6;margin-bottom:2px;">Action 2</div>
+              <div style="font-size:13.5px;">Composer le JSON</div>
+            </div>
+          </div>
+          <div class="sp-action">
+            <div class="sp-icon" style="background:#34c759;">🌐</div>
+            <div>
+              <div style="font-size:12px;opacity:.6;margin-bottom:2px;">Action 3</div>
+              <div style="font-size:13.5px;">POST → Vercel proxy</div>
+            </div>
+          </div>
+          <div class="sp-action">
+            <div class="sp-icon" style="background:#ff9500;">💬</div>
+            <div>
+              <div style="font-size:12px;opacity:.6;margin-bottom:2px;">Action 4</div>
+              <div style="font-size:13.5px;">Afficher "✅ Ajouté dans Notion !"</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="shortcut-card" style="margin-top:1rem;">
+          <div class="shortcut-badge">⚙️ Variables d'environnement Vercel</div>
+          <div style="font-size:13px;color:var(--ink-soft);line-height:1.7;">
+            Ajoutez dans votre projet Vercel → Settings → Environment Variables :<br><br>
+            <code style="background:var(--paper-2);padding:2px 7px;border-radius:4px;font-size:12px;">IOS_SHORTCUT_SECRET</code> = un mot de passe que vous choisissez (ex: <em>wallace2024</em>). Ce secret protège votre endpoint contre les appels non autorisés.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- CONFIG MODAL -->
+<div class="overlay" id="config-modal">
+  <div class="modal">
+    <h2>Configuration API</h2>
+    <p>URL de votre proxy Vercel déployé. Sauvegardée localement dans votre navigateur.</p>
+    <div class="field"><label class="fl">URL du proxy</label><input class="fi" type="url" id="cfg-url" placeholder="https://votre-projet.vercel.app/api/scan"></div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="closeConfig()">Annuler</button>
+      <button class="btn-primary" onclick="saveConfig()">Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <span>Wallace · CRM Tools — alimenté par Claude Vision & Notion API</span>
+  <span id="footer-env">Non configuré</span>
+</footer>
+
+<script>
+const STORAGE_KEY = "wallace_api_url";
+let dupTimeout = null;
+
+// ── Config ────────────────────────────────────────────────────────────────────
+function getApi() { return localStorage.getItem(STORAGE_KEY) || "/api/scan"; }
+function openConfig() { document.getElementById("cfg-url").value = getApi(); document.getElementById("config-modal").classList.add("open"); }
+function closeConfig() { document.getElementById("config-modal").classList.remove("open"); }
+function saveConfig() {
+  const url = document.getElementById("cfg-url").value.trim();
+  if (url) { localStorage.setItem(STORAGE_KEY, url); updateFooter(); }
+  closeConfig(); toast("Configuration sauvegardée ✓");
+}
+function updateFooter() {
+  const url = localStorage.getItem(STORAGE_KEY);
+  document.getElementById("footer-env").textContent = url ? "✓ Proxy configuré" : "Non configuré";
+  document.getElementById("api-url-display").textContent = url || "https://votre-projet.vercel.app/api/scan";
+}
+function copyUrl() {
+  navigator.clipboard.writeText(getApi()).then(() => toast("URL copiée ✓"));
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + id).classList.add("active");
+  btn.classList.add("active");
+}
+
+// ── Steps (scan) ──────────────────────────────────────────────────────────────
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById("s"+i);
+    el.className = "step" + (i < n ? " done" : i === n ? " active" : "");
+  });
+}
+
+// ── Drag & Drop générique ─────────────────────────────────────────────────────
+function handleDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add("drag"); }
+function handleDragLeave(id) { document.getElementById(id).classList.remove("drag"); }
+
+// ══ ONGLET 1 : SCAN CARTE ════════════════════════════════════════════════════
+
+function handleCardDrop(e) {
+  e.preventDefault(); handleDragLeave("upload-zone");
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith("image/")) handleCardFile(f);
+}
+
+function handleCardFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result.split(",")[1];
+    document.getElementById("preview-img").src = e.target.result;
+    document.getElementById("upload-zone").style.display = "none";
+    document.getElementById("card-preview").style.display = "block";
+    setStep(1);
+    analyzeCard(b64, file.type);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeCard(b64, mediaType) {
+  setStep(2);
+  document.getElementById("card-loading").style.display = "flex";
+  try {
+    const r = await fetch(getApi(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "analyze", imageBase64: b64, mediaType })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || "Erreur API");
+    fillCardForm(d.data);
+    await checkDups(d.data.entreprise);
+  } catch(err) {
+    document.getElementById("card-loading").style.display = "none";
+    toast("Erreur : " + err.message, true); setStep(1);
+  }
+}
+
+function fillCardForm(d) {
+  document.getElementById("card-loading").style.display = "none";
+  document.getElementById("card-placeholder").style.display = "none";
+  document.getElementById("card-form").style.display = "block";
+  setStep(3);
+  document.getElementById("f-prenom").value  = d.prenom || "";
+  document.getElementById("f-nom").value     = d.nom || "";
+  document.getElementById("f-entreprise").value = d.entreprise || "";
+  document.getElementById("f-poste").value   = d.poste || "";
+  document.getElementById("f-email").value   = d.email || "";
+  document.getElementById("f-tel").value     = d.telephone || "";
+  document.getElementById("f-web").value     = d.site_web || "";
+  document.getElementById("f-linkedin").value = d.linkedin || "";
+  document.getElementById("f-ent-id").value  = "";
+}
+
+async function checkDups(ent) {
+  if (!ent || ent.length < 2) return;
+  try {
+    const r = await fetch(getApi(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "check_duplicates", entreprise: ent })
+    });
+    const d = await r.json();
+    const matches = d.matches || [];
+    const alert = document.getElementById("dup-alert");
+    const list = document.getElementById("dup-list");
+    if (matches.length) {
+      list.innerHTML = matches.map(m => `
+        <div class="dup-match">
+          <span>${m.nom}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="dup-score">${m.score}% similaire</span>
+            <button class="dup-link" onclick="linkEnt('${m.id}','${m.nom.replace(/'/g,"\\'")}')">Lier →</button>
+          </div>
+        </div>`).join("");
+      alert.style.display = "block";
+    } else { alert.style.display = "none"; }
+  } catch {}
+}
+
+function onEntChange(val) {
+  clearTimeout(dupTimeout);
+  document.getElementById("f-ent-id").value = "";
+  dupTimeout = setTimeout(() => checkDups(val), 600);
+}
+
+function linkEnt(id, nom) {
+  document.getElementById("f-entreprise").value = nom;
+  document.getElementById("f-ent-id").value = id;
+  document.getElementById("dup-alert").style.display = "none";
+  toast(`Lié à "${nom}" ✓`);
+}
+
+async function sendCard() {
+  const btn = document.getElementById("send-btn");
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:14px;height:14px;"></div> Envoi…`;
+  setStep(4);
+  const contact = {
+    prenom: document.getElementById("f-prenom").value.trim(),
+    nom: document.getElementById("f-nom").value.trim(),
+    entreprise: document.getElementById("f-entreprise").value.trim(),
+    poste: document.getElementById("f-poste").value.trim(),
+    email: document.getElementById("f-email").value.trim(),
+    telephone: document.getElementById("f-tel").value.trim(),
+    linkedin: document.getElementById("f-linkedin").value.trim(),
+    notes: document.getElementById("f-notes").value.trim(),
+    entreprise_notion_id: document.getElementById("f-ent-id").value.trim()
+  };
+  try {
+    const r = await fetch(getApi(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create_contact", contact }) });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || "Erreur Notion");
+    const name = [contact.prenom, contact.nom].filter(Boolean).join(" ") || "Contact";
+    document.getElementById("success-name").textContent = name + " ajouté !";
+    document.getElementById("success-link").href = d.page_url;
+    document.getElementById("card-form").style.display = "none";
+    document.getElementById("card-success").style.display = "block";
+  } catch(err) {
+    toast("Erreur : " + err.message, true);
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Ajouter dans Notion`;
+    setStep(3);
+  }
+}
+
+function resetCard() {
+  document.getElementById("card-file").value = "";
+  document.getElementById("upload-zone").style.display = "block";
+  document.getElementById("card-preview").style.display = "none";
+  document.getElementById("card-loading").style.display = "none";
+  document.getElementById("card-placeholder").style.display = "block";
+  document.getElementById("card-form").style.display = "none";
+  document.getElementById("card-success").style.display = "none";
+  document.getElementById("dup-alert").style.display = "none";
+  document.getElementById("send-btn").disabled = false;
+  document.getElementById("send-btn").innerHTML = `<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Ajouter dans Notion`;
+  setStep(0);
+}
+
+// ══ ONGLET 2 : IMPORT vCARD ═══════════════════════════════════════════════════
+
+function handleVcfDrop(e) {
+  e.preventDefault(); handleDragLeave("vcf-zone");
+  const f = e.dataTransfer.files[0];
+  if (f) handleVcfFile(f);
+}
+
+function handleVcfFile(file) {
+  if (!file) return;
+  document.getElementById("vcf-file-name").textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => startVcfImport(e.target.result);
+  reader.readAsText(file, "UTF-8");
+}
+
+async function startVcfImport(content) {
+  document.getElementById("import-progress").style.display = "block";
+  document.getElementById("import-results").style.display = "none";
+  document.getElementById("prog-bar").style.width = "10%";
+  document.getElementById("prog-label").textContent = "Envoi des contacts…";
+
+  try {
+    document.getElementById("prog-bar").style.width = "40%";
+    const r = await fetch(getApi(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "import_vcards", vcfContent: content })
+    });
+    document.getElementById("prog-bar").style.width = "90%";
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || "Erreur import");
+    document.getElementById("prog-bar").style.width = "100%";
+    setTimeout(() => showImportResults(d), 300);
+  } catch(err) {
+    document.getElementById("import-progress").style.display = "none";
+    toast("Erreur : " + err.message, true);
+  }
+}
+
+function showImportResults(d) {
+  document.getElementById("import-progress").style.display = "none";
+  const res = document.getElementById("import-results");
+  res.style.display = "block";
+
+  const created = d.created || [], skipped = d.skipped || [], errors = d.errors || [];
+  document.getElementById("res-summary").innerHTML = `
+    <div class="res-card green"><span class="res-num">${created.length}</span><span class="res-label">Ajoutés</span></div>
+    <div class="res-card"><span class="res-num">${skipped.length}</span><span class="res-label">Ignorés (doublon)</span></div>
+    <div class="res-card ${errors.length ? 'orange' : ''}"><span class="res-num">${errors.length}</span><span class="res-label">Erreurs</span></div>
+  `;
+
+  const allItems = [
+    ...created.map(c => ({ dot: "green", nom: c.nom, label: "Ajouté" })),
+    ...skipped.map(c => ({ dot: "gray", nom: c.nom, label: c.reason })),
+    ...errors.map(c => ({ dot: "red", nom: c.nom, label: c.reason }))
+  ];
+
+  document.getElementById("res-list").innerHTML = allItems.map(item => `
+    <div class="result-item">
+      <div class="ri-dot ${item.dot}"></div>
+      <span class="ri-name">${item.nom || "—"}</span>
+      <span class="ri-reason">${item.label}</span>
+    </div>
+  `).join("") || "<div class='result-item' style='justify-content:center;color:var(--ink-muted);'>Aucun résultat</div>";
+}
+
+function resetVcf() {
+  document.getElementById("vcf-file").value = "";
+  document.getElementById("vcf-file-name").textContent = "";
+  document.getElementById("import-progress").style.display = "none";
+  document.getElementById("import-results").style.display = "none";
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, err = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast" + (err ? " err" : "") + " show";
+  setTimeout(() => { t.className = "toast" + (err ? " err" : ""); }, 3200);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateFooter();
+</script>
+</body>
+</html>
