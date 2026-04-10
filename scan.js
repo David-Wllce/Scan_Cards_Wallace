@@ -1,9 +1,9 @@
 export const config = { maxDuration: 60 };
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const NOTION_KEY    = process.env.NOTION_API_KEY;
-const CONTACTS_DB   = process.env.NOTION_CONTACTS_DB_ID;
-const CLIENTS_DB    = process.env.NOTION_CLIENTS_DB_ID;
+const NOTION_KEY = process.env.NOTION_API_KEY;
+const CONTACTS_DB = process.env.NOTION_CONTACTS_DB_ID;
+const CLIENTS_DB = process.env.NOTION_CLIENTS_DB_ID;
 
 function notion(path, method = "GET", body) {
   return fetch(`https://api.notion.com/v1${path}`, {
@@ -42,24 +42,18 @@ function parseVCards(text) {
     const nom = (n[0] || "").trim();
     const prenom = (n[1] || "").trim();
     const fn = get("FN").trim();
-    const nomFinal    = nom || fn.split(" ").slice(-1)[0] || "";
+    const nomFinal = nom || fn.split(" ").slice(-1)[0] || "";
     const prenomFinal = prenom || (fn.includes(" ") ? fn.split(" ").slice(0, -1).join(" ") : "");
-    const org    = get("ORG").replace(/;/g, " ").trim();
-    const titre  = get("TITLE").trim() || get("ROLE").trim();
-    const telM   = unfolded.match(/^TEL[^:\n]*:(.+)/im);
+    const org = get("ORG").replace(/;/g, " ").trim();
+    const titre = get("TITLE").trim() || get("ROLE").trim();
+    const telM = unfolded.match(/^TEL[^:\n]*:(.+)/im);
     const emailM = unfolded.match(/^EMAIL[^:\n]*:(.+)/im);
-    const urlM   = unfolded.match(/^URL[^:\n]*:(.+)/im);
-    const adrM   = unfolded.match(/^ADR[^:\n]*:(.+)/im);
-    const note   = get("NOTE").replace(/\\n/g, " ").trim();
+    const urlM = unfolded.match(/^URL[^:\n]*:(.+)/im);
+    const adrM = unfolded.match(/^ADR[^:\n]*:(.+)/im);
+    const note = get("NOTE").replace(/\\n/g, " ").trim();
     const adresse = adrM ? adrM[1].split(";").filter(Boolean).join(", ").trim() : "";
     if (nomFinal || prenomFinal || org || emailM) {
-      cards.push({
-        nom: nomFinal, prenom: prenomFinal, entreprise: org, poste: titre,
-        email: emailM ? emailM[1].trim() : "",
-        telephone: telM ? telM[1].trim() : "",
-        site_web: urlM ? urlM[1].trim() : "",
-        adresse, notes: note
-      });
+      cards.push({ nom: nomFinal, prenom: prenomFinal, entreprise: org, poste: titre, email: emailM ? emailM[1].trim() : "", telephone: telM ? telM[1].trim() : "", site_web: urlM ? urlM[1].trim() : "", adresse, notes: note });
     }
   }
   return cards;
@@ -74,21 +68,13 @@ export default async function handler(req, res) {
 
   const { action } = req.body;
 
-  // 1. Analyser une carte (vision IA)
   if (action === "analyze") {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64) return res.status(400).json({ error: "Image manquante" });
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: "claude-opus-4-5", max_tokens: 800,
-        system: `Tu es un expert OCR. Analyse la carte de visite. Réponds UNIQUEMENT en JSON valide sans markdown. Format: {"nom":"","prenom":"","entreprise":"","poste":"","email":"","telephone":"","site_web":"","linkedin":"","adresse":""}. Valeur "" si absent. Ne jamais inventer.`,
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: imageBase64 } },
-          { type: "text", text: "Extrais toutes les informations de cette carte de visite." }
-        ]}]
-      })
+      body: JSON.stringify({ model: "claude-opus-4-5", max_tokens: 800, system: `Tu es un expert OCR. Analyse la carte de visite. Réponds UNIQUEMENT en JSON valide sans markdown. Format: {"nom":"","prenom":"","entreprise":"","poste":"","email":"","telephone":"","site_web":"","linkedin":"","adresse":""}. Valeur "" si absent. Ne jamais inventer.`, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: imageBase64 } }, { type: "text", text: "Extrais toutes les informations de cette carte de visite." }] }] })
     });
     const d = await r.json();
     const raw = (d.content || []).map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
@@ -96,57 +82,41 @@ export default async function handler(req, res) {
     catch { return res.status(500).json({ error: "Impossible d'analyser", raw }); }
   }
 
-  // 2. Vérifier doublons entreprise
   if (action === "check_duplicates") {
     const { entreprise } = req.body;
     if (!entreprise || entreprise.length < 2) return res.status(200).json({ matches: [] });
     const data = await notion(`/databases/${CLIENTS_DB}/query`, "POST", { page_size: 100 });
-    const matches = (data.results || [])
-      .map(p => ({ id: p.id, nom: p.properties?.Nom?.title?.[0]?.plain_text || "", score: 0 }))
-      .map(m => ({ ...m, score: similarity(entreprise, m.nom) }))
-      .filter(m => m.score >= 50).sort((a, b) => b.score - a.score).slice(0, 3);
+    const matches = (data.results || []).map(p => ({ id: p.id, nom: p.properties?.Nom?.title?.[0]?.plain_text || "", score: 0 })).map(m => ({ ...m, score: similarity(entreprise, m.nom) })).filter(m => m.score >= 50).sort((a, b) => b.score - a.score).slice(0, 3);
     return res.status(200).json({ matches });
   }
 
-  // 3. Créer un contact unique
   if (action === "create_contact") {
     const { contact } = req.body;
     if (!contact) return res.status(400).json({ error: "Contact manquant" });
     const nomComplet = [contact.prenom, contact.nom].filter(Boolean).join(" ") || "Contact sans nom";
-    const props = {
-      "Nom complet": { title: [{ text: { content: nomComplet } }] },
-      "Statut contact": { select: { name: "Lead chaud" } }
-    };
-    if (contact.poste)     props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
-    if (contact.email)     props["Email"]        = { email: contact.email };
-    if (contact.telephone) props["Téléphone"]    = { phone_number: contact.telephone };
-    if (contact.linkedin)  props["LinkedIn"]     = { url: contact.linkedin.startsWith("http") ? contact.linkedin : `https://${contact.linkedin}` };
-    if (contact.notes)     props["Notes"]        = { rich_text: [{ text: { content: contact.notes } }] };
+    const props = { "Nom complet": { title: [{ text: { content: nomComplet } }] }, "Statut contact": { select: { name: "Lead chaud" } } };
+    if (contact.poste) props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
+    if (contact.email) props["Email"] = { email: contact.email };
+    if (contact.telephone) props["Téléphone"] = { phone_number: contact.telephone };
+    if (contact.linkedin) props["LinkedIn"] = { url: contact.linkedin.startsWith("http") ? contact.linkedin : `https://${contact.linkedin}` };
+    if (contact.notes) props["Notes"] = { rich_text: [{ text: { content: contact.notes } }] };
     if (contact.entreprise_notion_id) props["Entreprise"] = { relation: [{ id: contact.entreprise_notion_id }] };
     const page = await notion("/pages", "POST", { parent: { database_id: CONTACTS_DB }, icon: { emoji: "👤" }, properties: props });
     if (page.object === "error") return res.status(500).json({ error: page.message });
     return res.status(200).json({ success: true, page_url: page.url, id: page.id });
   }
 
-  // 4. Import vCard en lot
   if (action === "import_vcards") {
     const { vcfContent } = req.body;
     if (!vcfContent) return res.status(400).json({ error: "Contenu vCard manquant" });
     const contacts = parseVCards(vcfContent);
     if (!contacts.length) return res.status(400).json({ error: "Aucun contact valide trouvé" });
-
     const [clientsData, contactsData] = await Promise.all([
       notion(`/databases/${CLIENTS_DB}/query`, "POST", { page_size: 100 }),
       notion(`/databases/${CONTACTS_DB}/query`, "POST", { page_size: 100 })
     ]);
-
-    const existingClients = (clientsData.results || []).map(p => ({
-      id: p.id, nom: p.properties?.Nom?.title?.[0]?.plain_text || ""
-    }));
-    const existingEmails = new Set(
-      (contactsData.results || []).map(p => p.properties?.Email?.email || "").filter(Boolean).map(e => e.toLowerCase())
-    );
-
+    const existingClients = (clientsData.results || []).map(p => ({ id: p.id, nom: p.properties?.Nom?.title?.[0]?.plain_text || "" }));
+    const existingEmails = new Set((contactsData.results || []).map(p => p.properties?.Email?.email || "").filter(Boolean).map(e => e.toLowerCase()));
     const results = { created: [], skipped: [], errors: [] };
 
     for (const contact of contacts) {
@@ -160,17 +130,31 @@ export default async function handler(req, res) {
           "Nom complet": { title: [{ text: { content: nomComplet } }] },
           "Statut contact": { select: { name: "Lead froid" } }
         };
-        if (contact.poste)     props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
-        if (contact.email)     props["Email"]        = { email: contact.email };
-        if (contact.telephone) props["Téléphone"]    = { phone_number: contact.telephone };
-        if (contact.site_web)  props["LinkedIn"]     = { url: contact.site_web };
+        if (contact.poste) props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
+        if (contact.email) props["Email"] = { email: contact.email };
+        if (contact.telephone) props["Téléphone"] = { phone_number: contact.telephone };
+        if (contact.site_web) props["LinkedIn"] = { url: contact.site_web };
+
+        // Construire les notes
         const notesParts = [contact.adresse, contact.notes].filter(Boolean);
-        if (notesParts.length) props["Notes"] = { rich_text: [{ text: { content: notesParts.join(" — ") } }] };
+
         if (contact.entreprise) {
-          const match = existingClients.map(c => ({ ...c, score: similarity(contact.entreprise, c.nom) }))
-            .filter(c => c.score >= 70).sort((a, b) => b.score - a.score)[0];
-          if (match) props["Entreprise"] = { relation: [{ id: match.id }] };
+          const match = existingClients
+            .map(c => ({ ...c, score: similarity(contact.entreprise, c.nom) }))
+            .filter(c => c.score >= 70)
+            .sort((a, b) => b.score - a.score)[0];
+
+          if (match) {
+            // Entreprise trouvée dans Notion → on la lie
+            props["Entreprise"] = { relation: [{ id: match.id }] };
+          } else {
+            // Entreprise non trouvée → on l'écrit dans les Notes
+            notesParts.unshift(`Entreprise : ${contact.entreprise}`);
+          }
         }
+
+        if (notesParts.length) props["Notes"] = { rich_text: [{ text: { content: notesParts.join(" — ") } }] };
+
         const page = await notion("/pages", "POST", { parent: { database_id: CONTACTS_DB }, icon: { emoji: "👤" }, properties: props });
         if (page.object === "error") {
           results.errors.push({ nom: nomComplet, reason: page.message });
@@ -186,7 +170,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, total: contacts.length, ...results });
   }
 
-  // 5. Raccourci iOS (contact unique en JSON depuis l'app Raccourcis)
   if (action === "ios_shortcut") {
     const { contact, secret } = req.body;
     const IOS_SECRET = process.env.IOS_SHORTCUT_SECRET || "";
@@ -197,9 +180,9 @@ export default async function handler(req, res) {
       "Nom complet": { title: [{ text: { content: nomComplet } }] },
       "Statut contact": { select: { name: "Lead froid" } }
     };
-    if (contact.poste)     props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
-    if (contact.email)     props["Email"]        = { email: contact.email };
-    if (contact.telephone) props["Téléphone"]    = { phone_number: contact.telephone };
+    if (contact.poste) props["Rôle / Poste"] = { rich_text: [{ text: { content: contact.poste } }] };
+    if (contact.email) props["Email"] = { email: contact.email };
+    if (contact.telephone) props["Téléphone"] = { phone_number: contact.telephone };
     const notesParts = [contact.entreprise && `Société : ${contact.entreprise}`, contact.adresse].filter(Boolean);
     if (notesParts.length) props["Notes"] = { rich_text: [{ text: { content: notesParts.join("\n") } }] };
     const page = await notion("/pages", "POST", { parent: { database_id: CONTACTS_DB }, icon: { emoji: "📱" }, properties: props });
